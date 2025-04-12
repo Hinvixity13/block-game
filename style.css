@@ -1,0 +1,18 @@
+body {
+  margin: 0;
+  overflow: hidden;
+  background: #000;
+}
+#game {
+  display: block;
+}
+#crosshair {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  color: white;
+  font-size: 30px;
+  pointer-events: none;
+  user-select: none;
+}

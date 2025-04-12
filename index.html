@@ -1,14 +1,171 @@
 <!DOCTYPE html>
 <html lang="en">
-<head>
-  <meta charset="UTF-8" />
-  <title>Block Game</title>
-  <link rel="stylesheet" href="style.css" />
-</head>
-<body>
-  <canvas id="game"></canvas>
-  <div id="crosshair">+</div>
-  <script src="https://cdn.jsdelivr.net/npm/three@0.158.0/build/three.min.js"></script>
-  <script src="main.js"></script>
-</body>
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>3D Block Game</title>
+    <style>
+      body {
+        margin: 0;
+        overflow: hidden;
+        height: 100vh;
+      }
+      canvas {
+        display: block;
+      }
+    </style>
+  </head>
+  <body>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.132.2/build/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.132.2/examples/js/controls/OrbitControls.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.132.2/examples/js/loaders/TextureLoader.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.132.2/examples/js/geometries/BoxGeometry.js"></script>
+    <script>
+      let scene, camera, renderer, controls;
+      let player, ground;
+      let blockTextures = [];
+      let currentBlock = 0; // Index for the selected block
+      let isJumping = false, jumpHeight = 0;
+
+      function init() {
+        scene = new THREE.Scene();
+        camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+        renderer = new THREE.WebGLRenderer();
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        document.body.appendChild(renderer.domElement);
+
+        controls = new THREE.OrbitControls(camera, renderer.domElement);
+
+        // Lighting
+        const light = new THREE.AmbientLight(0x404040, 2);
+        scene.add(light);
+        const directionalLight = new THREE.DirectionalLight(0xffffff, 1);
+        directionalLight.position.set(0, 10, 5).normalize();
+        scene.add(directionalLight);
+
+        // Load textures for blocks
+        const textureLoader = new THREE.TextureLoader();
+        blockTextures = [
+          textureLoader.load("textures/grass.png"),
+          textureLoader.load("textures/stone.png"),
+          textureLoader.load("textures/dirt.png"),
+          textureLoader.load("textures/wood.png"),  // New block type
+          textureLoader.load("textures/water.png"), // New block type
+          textureLoader.load("textures/lava.png"),  // New block type
+        ];
+
+        // Ground (where the player stands)
+        const groundGeometry = new THREE.PlaneGeometry(100, 100);
+        const groundMaterial = new THREE.MeshBasicMaterial({ color: 0x7c7c7c, side: THREE.DoubleSide });
+        ground = new THREE.Mesh(groundGeometry, groundMaterial);
+        ground.rotation.x = Math.PI / 2;
+        scene.add(ground);
+
+        // Create the player block (it will be your "avatar")
+        player = new THREE.Mesh(new THREE.BoxGeometry(1, 2, 1), new THREE.MeshBasicMaterial({ color: 0xff0000 }));
+        player.position.set(0, 1, 0);
+        scene.add(player);
+
+        camera.position.set(0, 10, 20);
+        camera.lookAt(0, 0, 0);
+
+        // Controls
+        window.addEventListener('click', onMouseClick, false);
+        window.addEventListener('keydown', onKeyDown, false);
+
+        // Time handling
+        const clock = new THREE.Clock();
+        function animate() {
+          requestAnimationFrame(animate);
+          controls.update();
+          
+          if (isJumping) {
+            player.position.y += 0.1;
+            jumpHeight += 0.1;
+            if (jumpHeight >= 1) {
+              isJumping = false;
+            }
+          }
+
+          renderer.render(scene, camera);
+        }
+        animate();
+      }
+
+      function onMouseClick(event) {
+        const raycaster = new THREE.Raycaster();
+        const mouse = new THREE.Vector2();
+        mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
+        mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
+        raycaster.setFromCamera(mouse, camera);
+
+        const intersects = raycaster.intersectObject(ground);
+        if (intersects.length > 0) {
+          const position = intersects[0].point;
+          position.x = Math.floor(position.x);
+          position.y = Math.floor(position.y);
+          position.z = Math.floor(position.z);
+
+          if (event.button === 0) { // Left-click to place blocks
+            const block = new THREE.Mesh(new THREE.BoxGeometry(1, 1, 1), new THREE.MeshBasicMaterial({ map: blockTextures[currentBlock] }));
+            block.position.set(position.x, position.y, position.z);
+            scene.add(block);
+          } else if (event.button === 2) { // Right-click to remove blocks
+            const blocksToRemove = [];
+            scene.traverse(function (object) {
+              if (object instanceof THREE.Mesh && object.geometry instanceof THREE.BoxGeometry) {
+                if (object.position.equals(position)) {
+                  blocksToRemove.push(object);
+                }
+              }
+            });
+            blocksToRemove.forEach(block => scene.remove(block));
+          }
+        }
+      }
+
+      function onKeyDown(event) {
+        const moveSpeed = 0.1;
+        if (event.key === "w") player.position.z -= moveSpeed;
+        if (event.key === "s") player.position.z += moveSpeed;
+        if (event.key === "a") player.position.x -= moveSpeed;
+        if (event.key === "d") player.position.x += moveSpeed;
+        if (event.key === " ") jump(); // Spacebar to jump
+        if (event.key === "1") currentBlock = 0; // Select Grass
+        if (event.key === "2") currentBlock = 1; // Select Stone
+        if (event.key === "3") currentBlock = 2; // Select Dirt
+        if (event.key === "4") currentBlock = 3; // Select Wood
+        if (event.key === "5") currentBlock = 4; // Select Water
+        if (event.key === "6") currentBlock = 5; // Select Lava
+      }
+
+      function jump() {
+        if (!isJumping) {
+          isJumping = true;
+          jumpHeight = 0;
+        }
+      }
+
+      // Skybox (for Day-Night cycle)
+      let skyboxMaterials = [
+        new THREE.MeshBasicMaterial({ color: 0x87CEEB, side: THREE.BackSide }), // Sky
+      ];
+
+      function updateSkybox() {
+        // Day-Night cycle effect
+        let time = (Date.now() % 60000) / 60000; // From 0 to 1
+        skyboxMaterials[0].color.setHSL(time, 1, 0.5); // Change color smoothly
+      }
+
+      function animateSkybox() {
+        updateSkybox();
+        requestAnimationFrame(animateSkybox);
+      }
+
+      // Call skybox animation
+      animateSkybox();
+
+      init();
+    </script>
+  </body>
 </html>
